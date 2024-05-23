@@ -1,0 +1,20 @@
+# this second option manually specifies limits:
+run_coordinator:
+  module: dagster.core.run_coordinator
+  class: QueuedRunCoordinator
+  config:
+    max_concurrent_runs: 10
+    tag_concurrency_limits:
+      - key: "partitioning_limit"
+        value: "low"
+        limit: 2
+      - key: "partitioning_limit"
+        value: "medium"
+        limit: 5
+      - key: "partitioning_limit"
+        value: "high"
+        limit: 8
+
+storage:
+  sqlite:
+    base_dir: ./dagster_storage/

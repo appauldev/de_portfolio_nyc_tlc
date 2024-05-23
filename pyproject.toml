@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "de-portfolio-nyc-tlc"
+version = "0.1.0"
+description = ""
+authors = ["appauldev <appauldev+git@gmail.com>"]
+readme = "README.md"
+packages = [{ include = "de_portfolio_nyc_tlc", from = "src" }]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.13"
+dagster = "^1.7.5"
+dagster-webserver = "^1.7.5"
+httpx = "^0.27.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
