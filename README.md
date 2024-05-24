@@ -1,5 +1,5 @@
 # Independent Learning Project: Data Engineering and Exploration of NYC Taxi Trips
-project status: WIP 🚧
+🚧 _Work in Progress_ 🚧 [You can check the project status here](https://github.com/users/appauldev/projects/3)
 
 ## Introduction
 This repo contains my _unguided_ and _open-ended_ data project inspired by [Datacamp Unguided Projects](https://www.datacamp.com/blog/introducing-unguided-projects-the-worlds-first-interactive-code-along-exercises). It which primarily aims further apply and develop my data engineering and analysis skills using real-world dataset. The project uses the [NYC Taxi and Limousine Commission (NYC TLC) Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) presented a valuable opportunity due to its size, complexity, and publicly available nature.
@@ -19,13 +19,13 @@ That is not to say guided projects have less value! Guided projects are one of t
 ## Problem Objectives
 This project aims to achieve two key objectives:
 
-**Develop Data Engineering Skills.** I seek to gain hands-on experience in the data engineering lifecycle by working with a real-world dataset. This include practicing data ingestion, transformation, cleaning, and exploration using relevant tools and techniques.
+**Develop Data Engineering Skills.** I seek to gain hands-on experience in the data engineering lifecycle by working with a real-world dataset. This includes practicing data ingestion, transformation, cleaning, and exploration using relevant tools and techniques.
 
 **Conduct Exploratory Data Analysis (EDA) of NYC Taxi Trip Data.** I am leveraging the NYC TLC trip data to explore patterns, trends, and insights within the dataset. This involves understanding the data structure, identifying data quality issues, and performing initial analysis to uncover potential areas for further investigation.
 
 This approach allows me to:
 - Further learn and apply data engineering concepts through practical implementation
-- Gain familiarity with the NYC TLC data and its potential uses for data-driven decision making (although for hypothetical scenarios for now)
+- Gain familiarity with the NYC TLC data and its potential uses for data-driven decision-making (although for hypothetical scenarios for now)
 - Develop my overall data skills 🙌🏻
 
 ## Data Sources
