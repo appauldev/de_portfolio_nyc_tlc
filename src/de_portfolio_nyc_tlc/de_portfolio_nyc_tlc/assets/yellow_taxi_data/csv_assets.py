@@ -1,10 +1,18 @@
-from dagster import AssetExecutionContext, asset, MaterializeResult, MetadataValue
+from dagster import (
+    AssetExecutionContext,
+    graph_asset,
+    asset,
+    MaterializeResult,
+    MetadataValue,
+)
 import pandas as pd
 import os
 import httpx
 import json
 import time
 from datetime import timedelta
+
+from .ops.csv_assets_ops import handle_stream_data_response
 
 from ...utils.log_utils import log_w_header
 
@@ -29,25 +37,33 @@ async def yellow_taxi_monthly_csv_2022(
         if start_date.split("-")[1] != "12"
         else "2024-01-01"
     )
-    # file type to stream
-    DATA_TYPE_TO_STREAM = "json"
 
     # Values for saving the streamed file
     # where to save
-    SAVE_DIR = os.path.join(os.path.dirname(__file__), "data")
-    # file name tag
     month_num = int(context.asset_partition_key_for_output().split("-")[1])
+    CSV_DATA_FOLDER = os.path.join(os.path.dirname(__file__), "data", "csv")
+    FILE_NAME = os.path.join(CSV_DATA_FOLDER, f"2022-{month_num}.csv")
+    # file name tag
 
     async with httpx.AsyncClient() as client:
         try:
             log_w_header(f"starting stream download for month {month_num}", "/")
 
             # request details
-            # $where query https://dev.socrata.com/docs/queries/
+            # $where and other query doc: https://dev.socrata.com/docs/queries/
             app_token = os.getenv("NYC_OPEN_DATA_APP_TOKEN")
-            where = f"tpep_pickup_datetime >= '{start_date}' AND tpep_pickup_datetime < '{end_date}'"
+            file_type = "json"
+            where_query = f"tpep_pickup_datetime >= '{start_date}' AND tpep_pickup_datetime < '{end_date}'"
             request_limit = 500000
             offset = 0
+            timeout = httpx.Timeout(90)
+            url = (
+                f"{constants.YELLOW_TAXI_TRIPS_2022_URL}.{file_type}?"
+                + f"$$app_token={app_token}"
+                + f"&$where={where_query}"
+                + f"&$limit={request_limit}"
+                + f"&$offset={offset}"
+            )
 
             # for logging
             total_rows_loaded = 0
@@ -64,16 +80,9 @@ async def yellow_taxi_monthly_csv_2022(
                 start_req_time = time.time()
                 async with client.stream(
                     "GET",
-                    f"{constants.YELLOW_TAXI_TRIPS_2022_URL}.{DATA_TYPE_TO_STREAM}?"
-                    + f"$$app_token={app_token}"
-                    + f"&$where={where}"
-                    + f"&$limit={request_limit}"
-                    + f"&$offset={offset}",
-                    timeout=httpx.Timeout(90.0),
+                    url,
+                    timeout=timeout,
                 ) as response:
-                    # Check for exceptions
-                    response.raise_for_status()
-
                     # log request time
                     end_req_time = time.time()
                     log_w_header(
@@ -81,9 +90,13 @@ async def yellow_taxi_monthly_csv_2022(
                         ".",
                     )
 
+                    # Check for exceptions
+                    response.raise_for_status()
+
                     # save every X lines to csv where X = line_limit, more on this below
                     lines = []
                     line_limit = 100000
+                    append_flag = True if offset == 0 else False
 
                     # log time for streaming data
                     start_stream_time = time.time()
@@ -111,9 +124,9 @@ async def yellow_taxi_monthly_csv_2022(
                         if len(lines) == line_limit:
                             df = pd.DataFrame.from_records(lines)
                             df.to_csv(
-                                f"{SAVE_DIR}/csv/2022-{month_num}.csv",
-                                mode="w" if offset == 0 else "a",
-                                header=True if offset == 0 else False,
+                                f"{CSV_DATA_FOLDER}/2022-{month_num}.csv",
+                                mode="w" if append_flag else "a",
+                                header=append_flag,
                                 index=False,
                             )
                             # log the current number of records collected and the stream time
@@ -138,7 +151,7 @@ async def yellow_taxi_monthly_csv_2022(
                     if len(lines) > 0:
                         df = pd.DataFrame.from_records(lines)
                         df.to_csv(
-                            f"{SAVE_DIR}/csv/2022-{month_num}.csv",
+                            FILE_NAME,
                             mode="w" if offset == 0 else "a",
                             header=True if offset == 0 else False,
                             index=False,
@@ -189,3 +202,8 @@ async def yellow_taxi_monthly_csv_2022(
             "Number of fetched records": MetadataValue.int(total_rows_loaded),
         }
     )
+
+
+# @graph_asset
+# def YT_monthly_csv_2022():
+#     pass

@@ -1,5 +1,5 @@
 from dagster import job
-from ..ops.ops import get_list_of_csv, verify_row_count
+from ..ops.csv_assets_ops import get_list_of_csv, verify_row_count
 
 
 @job
