@@ -1,4 +1,4 @@
-# NYC TLC Data Pipeline
+# Independent Learning Project: Data Engineering and Exploration of NYC Taxi Trips
 project status: WIP 🚧
 
 ## Introduction
