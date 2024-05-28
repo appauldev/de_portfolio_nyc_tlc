@@ -56,6 +56,8 @@ async def handle_stream_data_response(
         line_accumulator.append(json.loads(line))
 
         # check if we have received enough lines
+        # NOTE: if `len(line_accumulator)` < `line_limit` by the end of the for loop, that means we have exhausted the response
+        #  See the corresponding conditional statement below for this case.
         if len(line_accumulator) == line_limit:
             # save the acculated lines
             save_streamed_lines(line_accumulator, file_name, append_flag)
@@ -68,7 +70,7 @@ async def handle_stream_data_response(
     #  since the streamed data did not reach the line_limit
     # NOTE: Ending the request loop will only work correctly when request_limit % line_limit == 0
     #  This means if the request_limit is not divisible by line_limit, the request loop
-    #  will terminate after the first request even if there is still data for the API request of the sql-like query
+    #  will terminate after the first request even if there is still data for our API request
     if len(line_accumulator) > 0:
         save_streamed_lines(line_accumulator, file_name, append_flag)
         line_accumulator.clear()
@@ -85,6 +87,8 @@ def save_streamed_lines(lines: list[int], file_path: str, append_flag: bool) -> 
     # convert line_accumulator to a dataframe
     df = pd.DataFrame.from_records(lines)
     # save the dataframe as csv
+    # `append_flag` uses the offset variable from our request to determine the
+    #  values for writing mode and header
     df.to_csv(
         file_path,
         mode="w" if append_flag else "a",

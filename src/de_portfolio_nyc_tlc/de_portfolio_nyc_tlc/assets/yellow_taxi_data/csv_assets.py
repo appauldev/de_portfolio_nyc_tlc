@@ -45,25 +45,28 @@ async def yellow_taxi_monthly_csv_2022(
     FILE_NAME = os.path.join(CSV_DATA_FOLDER, f"2022-{month_num}.csv")
     # file name tag
 
+    # API request details
+    # See this doc for $where and other API queries: https://dev.socrata.com/docs/queries/
+    app_token = os.getenv("NYC_OPEN_DATA_APP_TOKEN")
+    # request the file as JSON, but can also be requested as csv
+    # I am requesting it as JSON for learning purposes!
+    file_type = "json"
+    where_query = f"tpep_pickup_datetime >= '{start_date}' AND tpep_pickup_datetime < '{end_date}'"
+    response_limit = 500000
+    offset = 0
+    timeout = httpx.Timeout(90)
+    # construct the API request url
+    url = (
+        f"{constants.YELLOW_TAXI_TRIPS_2022_URL}.{file_type}?"
+        + f"$$app_token={app_token}"
+        + f"&$where={where_query}"
+        + f"&$limit={response_limit}"
+        + f"&$offset={offset}"
+    )
+
     async with httpx.AsyncClient() as client:
         try:
             log_w_header(f"starting stream download for month {month_num}", "/")
-
-            # request details
-            # $where and other query doc: https://dev.socrata.com/docs/queries/
-            app_token = os.getenv("NYC_OPEN_DATA_APP_TOKEN")
-            file_type = "json"
-            where_query = f"tpep_pickup_datetime >= '{start_date}' AND tpep_pickup_datetime < '{end_date}'"
-            request_limit = 500000
-            offset = 0
-            timeout = httpx.Timeout(90)
-            url = (
-                f"{constants.YELLOW_TAXI_TRIPS_2022_URL}.{file_type}?"
-                + f"$$app_token={app_token}"
-                + f"&$where={where_query}"
-                + f"&$limit={request_limit}"
-                + f"&$offset={offset}"
-            )
 
             # for logging
             total_rows_loaded = 0
@@ -72,11 +75,11 @@ async def yellow_taxi_monthly_csv_2022(
             stream_total_time = 0.0
 
             # start the request loop
-            # Limit the records request to N rows where N is request_limit and
+            # Limit the records request to N rows where N is response_limit and
             #  use offset to get the next set of rows, if there will be any
             should_stream_data = True
             while should_stream_data:
-                log_w_header(f"requesting with {request_limit=} and {offset=}", "*")
+                log_w_header(f"requesting with {response_limit=} and {offset=}", "*")
                 start_req_time = time.time()
                 async with client.stream(
                     "GET",
@@ -94,7 +97,7 @@ async def yellow_taxi_monthly_csv_2022(
                     response.raise_for_status()
 
                     # save every X lines to csv where X = line_limit, more on this below
-                    lines = []
+                    line_accumulator = []
                     line_limit = 100000
                     append_flag = True if offset == 0 else False
 
@@ -102,7 +105,7 @@ async def yellow_taxi_monthly_csv_2022(
                     start_stream_time = time.time()
                     async for line in response.aiter_lines():
                         # end the request loop when there are no more rows to fetch
-                        # this works when `request_limit` % `line_limit` != 0 or
+                        # this works when `response_limit` % `line_limit` != 0 or
                         #  when the count of record of the previous request
                         #  is divisible by line_limit
                         if line == "[]":
@@ -115,14 +118,16 @@ async def yellow_taxi_monthly_csv_2022(
                         # json line received, clean the data!
                         # remove the json brackets and json comma separators
                         line = line.strip(",[]")
-                        # convert the line to a dictionary and add to the lines list
-                        lines.append(json.loads(line))
+                        # convert the line to a dictionary and add to the line_accumulator list
+                        line_accumulator.append(json.loads(line))
 
                         # save the collected lines
                         # Use the offset variable to determine if the list of rows will be written as new or will be appended
                         # offset can be also used to prevent writing the csv header for appended rows
-                        if len(lines) == line_limit:
-                            df = pd.DataFrame.from_records(lines)
+                        # NOTE: if `len(line_accumulator)` < `line_limit` by the end of the for loop, that means we have exhausted the response
+                        #  See the corresponding conditional statement below for this case.
+                        if len(line_accumulator) == line_limit:
+                            df = pd.DataFrame.from_records(line_accumulator)
                             df.to_csv(
                                 f"{CSV_DATA_FOLDER}/2022-{month_num}.csv",
                                 mode="w" if append_flag else "a",
@@ -137,53 +142,56 @@ async def yellow_taxi_monthly_csv_2022(
                                 f"2022-{month_num}: Saved {total_rows_loaded} rows (took {(end_stream_time - start_stream_time):.2f} seconds to save {line_limit} records)",
                                 ".",
                             )
-                            # clear lines[] for the next set of records
-                            lines.clear()
+                            # clear line_accumulator[] for the next set of records
+                            line_accumulator.clear()
                             start_stream_time = time.time()
                     # end of for loop
 
                     # add the remaining lines if there are any
                     # this also means that there are no more stream data for the current request
                     #  since the streamed data did not reach the line_limit
-                    # NOTE: Ending the request loop will only work correctly when request_limit % line_limit == 0
-                    #  This means if the request_limit is not divisible by line_limit, the request loop
-                    #  will terminate after the first request even if there is still data for the API request of the sql-like query
-                    if len(lines) > 0:
-                        df = pd.DataFrame.from_records(lines)
+                    # NOTE: Ending the request loop will only work correctly when response_limit % line_limit == 0
+                    #  This means if the response_limit is not divisible by line_limit, the request loop
+                    #  will terminate after the first request even if there is still data for our API request
+                    if len(line_accumulator) > 0:
+                        df = pd.DataFrame.from_records(line_accumulator)
                         df.to_csv(
                             FILE_NAME,
                             mode="w" if offset == 0 else "a",
                             header=True if offset == 0 else False,
                             index=False,
                         )
-                        # update the counter and clear the lines list
-                        total_rows_loaded += len(lines)
+                        # update the counter and clear the line_accumulator list
+                        total_rows_loaded += len(line_accumulator)
                         end_stream_time = time.time()
                         stream_total_time += end_stream_time - start_stream_time
 
                         print(
-                            f"2022-{month_num}: Saved {len(lines)} rows from clean up (took {(end_stream_time - start_stream_time):.2f} seconds to save {line_limit} records)",
+                            f"2022-{month_num}: Saved {len(line_accumulator)} rows from clean up (took {(end_stream_time - start_stream_time):.2f} seconds to save {line_limit} records)",
                             ".",
                         )
 
                         log_w_header("No more stream data", "x")
 
-                        if request_limit % line_limit == 0:
+                        # NOTE: Important! Again, the stream download request loop will end prematurely
+                        #  if `response_limit` is not divisible by `line_limit` since the last batch of lines
+                        #  that will be streamed will always be less than `line_limit` during the first request.
+                        if response_limit % line_limit == 0:
                             should_stream_data = False
 
-                        lines.clear()
+                        line_accumulator.clear()
 
                     log_w_header(f"2022-{month_num}: Offset {offset} done!", "*")
                     print(f"Current total rows: {total_rows_loaded}")
                     print(
-                        f"Took {timedelta(seconds=stream_total_time)} to stream and save the {request_limit} records"
+                        f"Took {timedelta(seconds=stream_total_time)} to stream and save the {response_limit} records"
                     )
                     stream_total_time = 0.0
                     # continue requesting for streaming data if you are still reaching the line limit
                     if should_stream_data:
-                        offset += request_limit
+                        offset += response_limit
                     # print(f"fetched within {(end_time - start_time):.2f} seconds")
-                    # print(lines)
+                    # print(line_accumulator)
         except httpx.HTTPError as exc:
             print(f"HTTP Exception for {exc.request.url}")
             print(f"Error message: {exc}")
