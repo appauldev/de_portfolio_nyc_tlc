@@ -1,6 +1,6 @@
 from dagster import Definitions, load_assets_from_modules, multiprocess_executor
 
-from .assets.yellow_taxi_data import csv_assets, parquet_assets
+from .assets.yellow_taxi_data import csv_assets, parquet_assets, csv_asset_graph
 
 from .jobs import (
     fetch_yellow_taxi_csv_2022_job,
@@ -8,7 +8,7 @@ from .jobs import (
 )
 
 yellow_taxi_assets = load_assets_from_modules(
-    [csv_assets, parquet_assets], group_name="YELLOW_TAXI_2022"
+    [csv_assets, parquet_assets, csv_asset_graph], group_name="YELLOW_TAXI"
 )
 all_jobs = [
     fetch_yellow_taxi_csv_2022_job,

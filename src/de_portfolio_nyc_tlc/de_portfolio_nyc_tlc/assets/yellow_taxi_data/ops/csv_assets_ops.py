@@ -1,14 +1,17 @@
 import json
 import os
+from pathlib import Path
 from dagster import (
     In,
     OpExecutionContext,
+    Out,
     op,
     get_dagster_logger,
 )
 from httpx import AsyncClient, Response
-from numpy import append
 import pandas as pd
+
+from ....partitions import monthly_partition
 
 
 @op
@@ -17,9 +20,30 @@ def async_stream_download(client: AsyncClient):
     pass
 
 
+@op(out={"start_date": Out(), "end_date": Out()})
+def get_monthly_range(context: OpExecutionContext) -> tuple[str, str]:
+    start_date: str = context.partition_key
+    end_date: str = (
+        monthly_partition.get_next_partition_key(start_date)
+        if start_date.split("-")[1] != "12"
+        else "2024-01-01"
+    )
+
+    return (start_date, end_date)
+
+
 @op
-def get_monthly_partition_key(context: OpExecutionContext) -> str:
-    return context.asset_partition_key_for_output()
+def generate_file_name(start_date: str, csv_data_dir: Path) -> Path:
+
+    if not csv_data_dir.exists():
+        csv_data_dir.mkdir(parents=True, exist_ok=True)
+
+    month_num = start_date.split("-")[1]
+    CSV_FILE = Path(f"{csv_data_dir}/2022-{month_num}.csv")
+
+    print(f"path: {CSV_FILE}")
+
+    return CSV_FILE
 
 
 @op(
