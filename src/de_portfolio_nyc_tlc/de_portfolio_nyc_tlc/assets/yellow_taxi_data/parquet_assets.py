@@ -1,4 +1,6 @@
 from dagster import asset, AssetExecutionContext, MaterializeResult, MetadataValue
+
+from ...utils.log_utils import log_w_header
 from ...partitions import monthly_partition
 
 import pandas as pd
@@ -7,17 +9,17 @@ import os
 
 
 @asset(
-    deps=["yellow_taxi_monthly_csv_2022"],
+    deps=["YT_monthly_csv_2022"],
     partitions_def=monthly_partition,
     description="""The generated parquet files from the raw csv.
     Initial cleaning and filtering were done with the data such as:\n
     * Dropping records with missing `passenger_count` and `total_amount`
     * Dropping records with with invalid trip distance, i.e., `trip_distance > 0`, are retained""",
 )
-def yellow_taxi_monthly_parquet_2022(
+def YT_monthly_parquet_2022(
     context: AssetExecutionContext,
 ) -> MaterializeResult:
-    month_num = int(context.asset_partition_key_for_output().split("-")[1])
+    month_num = context.partition_key.split("-")[1]
     # prepend '0' to single digit months
     # month_num = f"0{month_num}" if len(month_num) == 1 else month_num
 
@@ -57,6 +59,7 @@ def yellow_taxi_monthly_parquet_2022(
     #  Hence, some of the columns will undergo initial cleaning and transformation before they are converted to a more appropriate data type
     timestamp_cols = ["tpep_pickup_datetime", "tpep_dropoff_datetime"]
     df = pd.read_csv(CSV_FILE, parse_dates=timestamp_cols)
+    raw_csv_length = len(df)
 
     # clean total_amount column by converting the data to a numeric value.
     # errors="coerce" will convert non-numeric values to NaN
@@ -69,27 +72,39 @@ def yellow_taxi_monthly_parquet_2022(
     df = df[df["trip_distance"] >= 0]
 
     # convert columns to appropriate data types
-    df[
-        [
-            "vendorid",
-            "passenger_count",
-            "ratecodeid",
-            "pulocationid",
-            "dolocationid",
-            "payment_type",
-        ]
-    ] = df[
-        [
-            "vendorid",
-            "passenger_count",
-            "ratecodeid",
-            "pulocationid",
-            "dolocationid",
-            "payment_type",
-        ]
-    ].astype(
-        int
-    )
+    cols_to_convert = [
+        "vendorid",
+        "passenger_count",
+        "ratecodeid",
+        "pulocationid",
+        "dolocationid",
+        "payment_type",
+    ]
+
+    for col in cols_to_convert:
+        log_w_header(f"Converting {col=}", "/")
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    # df[
+    #     [
+    #         "vendorid",
+    #         "passenger_count",
+    #         "ratecodeid",
+    #         "pulocationid",
+    #         "dolocationid",
+    #         "payment_type",
+    #     ]
+    # ] = df[
+    #     [
+    #         "vendorid",
+    #         "passenger_count",
+    #         "ratecodeid",
+    #         "pulocationid",
+    #         "dolocationid",
+    #         "payment_type",
+    #     ]
+    # ].astype(
+    #     int
+    # )
     df["store_and_fwd_flag"] = df["store_and_fwd_flag"].astype(str)
 
     # rename columns
@@ -114,7 +129,8 @@ def yellow_taxi_monthly_parquet_2022(
 
     return MaterializeResult(
         metadata={
-            "Number of records": MetadataValue.int(num_records),
+            "Number of records - parquet": MetadataValue.int(num_records),
+            "Number of records - raw csv": MetadataValue.int(raw_csv_length),
             "Column info": MetadataValue.json(col_info_json),
         }
     )

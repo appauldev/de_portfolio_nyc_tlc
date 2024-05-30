@@ -1,6 +1,6 @@
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PosixPath
 from dagster import (
     In,
     OpExecutionContext,
@@ -26,22 +26,27 @@ def get_monthly_range(context: OpExecutionContext) -> tuple[str, str]:
     end_date: str = (
         monthly_partition.get_next_partition_key(start_date)
         if start_date.split("-")[1] != "12"
-        else "2024-01-01"
+        else "2023-01-01"
     )
 
     return (start_date, end_date)
 
 
 @op
-def generate_file_name(start_date: str, csv_data_dir: Path) -> Path:
+def create_file_save_path(context: OpExecutionContext) -> Path:
 
+    start_date: str = context.partition_key
+
+    csv_data_dir = Path(
+        "de_portfolio_nyc_tlc/assets/yellow_taxi_data/data/csv/graph_asset"
+    )
     if not csv_data_dir.exists():
         csv_data_dir.mkdir(parents=True, exist_ok=True)
 
     month_num = start_date.split("-")[1]
     CSV_FILE = Path(f"{csv_data_dir}/2022-{month_num}.csv")
 
-    print(f"path: {CSV_FILE}")
+    print(f"file save path: {CSV_FILE}")
 
     return CSV_FILE
 

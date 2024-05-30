@@ -178,6 +178,8 @@ scripts/.build
 
 dagster_storage/
 tmp_*/
+tmp*
+
 
 # terraform
 # Local .terraform directories
@@ -217,3 +219,7 @@ override.tf.json
 terraform.rc
 
 gcp-key-*.json
+
+
+# pytest
+temp_dir/
