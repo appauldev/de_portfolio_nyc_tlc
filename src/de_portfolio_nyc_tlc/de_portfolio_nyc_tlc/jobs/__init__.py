@@ -22,6 +22,6 @@ convert_to_parquet_YT_2022_job = define_asset_job(
     partitions_def=monthly_partition,
     selection=YT_monthly_parquet_2022,
     tags={
-        "partitioning_limit": "high"
+        "partitioning_limit": "low"
     },
 )

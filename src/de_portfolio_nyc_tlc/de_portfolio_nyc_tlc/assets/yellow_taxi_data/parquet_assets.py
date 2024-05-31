@@ -1,4 +1,5 @@
 from dagster import asset, AssetExecutionContext, MaterializeResult, MetadataValue
+from numpy import int16, int8
 
 from ...utils.log_utils import log_w_header
 from ...partitions import monthly_partition
@@ -31,7 +32,7 @@ def YT_monthly_parquet_2022(
     CSV_FILE = os.path.join(CSV_FOLDER, f"2022-{month_num}.csv")
     PARQUET_FILE = os.path.join(PARQUET_FOLDER, f"2022-{month_num}.parquet")
 
-    # test = [
+    # cols = [
     #     "vendorid",
     #     "tpep_pickup_datetime",
     #     "tpep_dropoff_datetime",
@@ -54,25 +55,34 @@ def YT_monthly_parquet_2022(
     # ]
 
     # read the csv files and indicate the timestamp columns
-    # NOTE: setting the dtype for loading the csv results into an error because some columns have
-    #  malformed data (like a string in the total_amount column).
+    # NOTE: Ideally, the dtype would be set when reading the csv, but some columns have invalid data that results into an error
     #  Hence, some of the columns will undergo initial cleaning and transformation before they are converted to a more appropriate data type
     timestamp_cols = ["tpep_pickup_datetime", "tpep_dropoff_datetime"]
     df = pd.read_csv(CSV_FILE, parse_dates=timestamp_cols)
+    # for metadata
     raw_csv_length = len(df)
 
-    # clean total_amount column by converting the data to a numeric value.
-    # errors="coerce" will convert non-numeric values to NaN
-    df["total_amount"] = pd.to_numeric(df["total_amount"], errors="coerce")
+    # INITIAL CLEANING AND TRANSFORMATIONS
+    # clean some of the numeric columns by converting invalid values to NaN
+    cols_to_numeric = [
+        "vendorid",
+        "passenger_count",
+        "ratecodeid",
+        "pulocationid",
+        "dolocationid",
+        "payment_type",
+        "total_amount",
+        "trip_distance",
+    ]
+    for col in cols_to_numeric:
+        # Convert invalid numeric values to NaNs
+        df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # drop records that have no passenger count and no total amount
-    df = df.dropna(subset=["passenger_count", "total_amount"])
+    # drop invalid trip records w/ NaN values after the type conversion
+    df = df.dropna(subset=["passenger_count", "total_amount", "trip_distance"])
 
-    # only keep records with a valid trip_distance, ie, trip_distance is positive
-    df = df[df["trip_distance"] >= 0]
-
-    # convert columns to appropriate data types
-    cols_to_convert = [
+    # Convert columns to ints
+    cols_to_int = [
         "vendorid",
         "passenger_count",
         "ratecodeid",
@@ -80,32 +90,33 @@ def YT_monthly_parquet_2022(
         "dolocationid",
         "payment_type",
     ]
+    for col in cols_to_int:
+        # Replace NaNs to prevent error during dtype conversion
+        df.fillna({col: -1}, inplace=True)
 
-    for col in cols_to_convert:
-        log_w_header(f"Converting {col=}", "/")
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-    # df[
-    #     [
-    #         "vendorid",
-    #         "passenger_count",
-    #         "ratecodeid",
-    #         "pulocationid",
-    #         "dolocationid",
-    #         "payment_type",
-    #     ]
-    # ] = df[
-    #     [
-    #         "vendorid",
-    #         "passenger_count",
-    #         "ratecodeid",
-    #         "pulocationid",
-    #         "dolocationid",
-    #         "payment_type",
-    #     ]
-    # ].astype(
-    #     int
-    # )
-    df["store_and_fwd_flag"] = df["store_and_fwd_flag"].astype(str)
+        if col == "pulocationid" or col == "dolocationid":
+            df[col] = df[col].astype(int16)
+            continue
+
+        df[col] = df[col].astype(int8)
+
+    # convert the flag column to int
+    df["store_and_fwd_flag"] = df["store_and_fwd_flag"].mask(
+        df["store_and_fwd_flag"] == "Y", 1
+    )
+    df["store_and_fwd_flag"] = df["store_and_fwd_flag"].mask(
+        df["store_and_fwd_flag"] == "N", 0
+    )
+    df["store_and_fwd_flag"] = pd.to_numeric(df["store_and_fwd_flag"], errors="coerce")
+    df["store_and_fwd_flag"] = df["store_and_fwd_flag"].fillna(-1)
+    df["store_and_fwd_flag"] = df["store_and_fwd_flag"].astype(int8)
+
+    # filter valid trips
+    trips_w_passengers = df["passenger_count"] > 0
+    only_paid_trips = df["total_amount"] > 0
+    trips_w_valid_distance = df["trip_distance"] > 0
+
+    df = df[trips_w_passengers & trips_w_valid_distance & only_paid_trips]
 
     # rename columns
     col_names = {
@@ -123,6 +134,9 @@ def YT_monthly_parquet_2022(
     col_info_json = {}
     for index, value in df.dtypes.items():
         col_info_json[str(index)] = str(value)
+
+    print(df)
+    print(df.dtypes)
 
     # save dataframe as parquet
     df.to_parquet(PARQUET_FILE)
