@@ -26,7 +26,7 @@ import os
     Initial cleaning and filtering were done with the data such as:\n
     * Dropping records with missing `passenger_count` and `total_amount`
     * Dropping records with with invalid trip distance, i.e., `trip_distance > 0`, are retained""",
-    check_specs=[check_spec for check_spec in checks.asset_check_list],
+    check_specs=[c["check_spec"] for c in checks.check_specs],
 )
 def YT_monthly_parquet_2022(
     context: AssetExecutionContext,
@@ -164,16 +164,11 @@ def YT_monthly_parquet_2022(
     )
 
     # asset checks
-    CheckConditions = checks.CheckConditions(df)
 
-    yield AssetCheckResult(
-        check_name="trip_distances_are_positive",
-        passed=CheckConditions.trip_distances_are_positive(),
-    )
-
-    yield AssetCheckResult(
-        check_name="only_paid_trips", passed=CheckConditions.only_paid_trips()
-    )
+    for c in checks.check_specs:
+        check_name = c["check_spec"].name
+        condition_func = c["condition"]
+        yield AssetCheckResult(check_name=check_name, passed=condition_func(df))
 
     # return
     # )
