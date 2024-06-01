@@ -1,12 +1,22 @@
-from dagster import asset, AssetExecutionContext, MaterializeResult, MetadataValue
+from dagster import (
+    asset,
+    AssetExecutionContext,
+    MaterializeResult,
+    MetadataValue,
+    AssetCheckResult,
+    Output,
+)
 from numpy import int16, int8
 
-from ...utils.log_utils import log_w_header
 from ...partitions import monthly_partition
+
+from .checks import parquet_assets_checks as checks
 
 import pandas as pd
 
 import os
+
+# from ....de_portfolio_nyc_tlc_tests import test_asset_parquet as test
 
 
 @asset(
@@ -16,10 +26,11 @@ import os
     Initial cleaning and filtering were done with the data such as:\n
     * Dropping records with missing `passenger_count` and `total_amount`
     * Dropping records with with invalid trip distance, i.e., `trip_distance > 0`, are retained""",
+    check_specs=[check_spec for check_spec in checks.asset_check_list],
 )
 def YT_monthly_parquet_2022(
     context: AssetExecutionContext,
-) -> MaterializeResult:
+):
     month_num = context.partition_key.split("-")[1]
     # prepend '0' to single digit months
     # month_num = f"0{month_num}" if len(month_num) == 1 else month_num
@@ -141,10 +152,28 @@ def YT_monthly_parquet_2022(
     # save dataframe as parquet
     df.to_parquet(PARQUET_FILE)
 
-    return MaterializeResult(
-        metadata={
-            "Number of records - parquet": MetadataValue.int(num_records),
-            "Number of records - raw csv": MetadataValue.int(raw_csv_length),
-            "Column info": MetadataValue.json(col_info_json),
-        }
+    # yield the output
+    yield Output(
+        value=MaterializeResult(
+            metadata={
+                "Number of records - parquet": MetadataValue.int(num_records),
+                "Number of records - raw csv": MetadataValue.int(raw_csv_length),
+                "Column info": MetadataValue.json(col_info_json),
+            }
+        )
     )
+
+    # asset checks
+    CheckConditions = checks.CheckConditions(df)
+
+    yield AssetCheckResult(
+        check_name="trip_distances_are_positive",
+        passed=CheckConditions.trip_distances_are_positive(),
+    )
+
+    yield AssetCheckResult(
+        check_name="only_paid_trips", passed=CheckConditions.only_paid_trips()
+    )
+
+    # return
+    # )
