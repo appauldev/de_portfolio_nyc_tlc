@@ -4,7 +4,6 @@ from dagster import (
     MaterializeResult,
     MetadataValue,
     AssetCheckResult,
-    Output,
 )
 from numpy import int16, int8
 
@@ -16,24 +15,23 @@ import pandas as pd
 
 import os
 
-# from ....de_portfolio_nyc_tlc_tests import test_asset_parquet as test
-
 
 @asset(
     deps=["YT_monthly_csv_2022"],
     partitions_def=monthly_partition,
-    description="""The generated parquet files from the raw csv.
+    description="""
+    The generated parquet files from the raw csv.
     Initial cleaning and filtering were done with the data such as:\n
     * Dropping records with missing `passenger_count` and `total_amount`
-    * Dropping records with with invalid trip distance, i.e., `trip_distance > 0`, are retained""",
-    check_specs=[c["check_spec"] for c in checks.check_specs],
+    * Dropping records with with invalid trip distance, i.e., `trip_distance > 0`, are retained
+    """,
+    dagster_type={},
+    check_specs=[check_spec.acp for check_spec in checks.check_spec_list],
 )
 def YT_monthly_parquet_2022(
     context: AssetExecutionContext,
-):
+) -> MaterializeResult:
     month_num = context.partition_key.split("-")[1]
-    # prepend '0' to single digit months
-    # month_num = f"0{month_num}" if len(month_num) == 1 else month_num
 
     # prepare the saving destination
     DATA_FOLDER = os.path.join(os.path.dirname(__file__), "data")
@@ -152,23 +150,16 @@ def YT_monthly_parquet_2022(
     # save dataframe as parquet
     df.to_parquet(PARQUET_FILE)
 
-    # yield the output
-    yield Output(
-        value=MaterializeResult(
-            metadata={
-                "Number of records - parquet": MetadataValue.int(num_records),
-                "Number of records - raw csv": MetadataValue.int(raw_csv_length),
-                "Column info": MetadataValue.json(col_info_json),
-            }
-        )
+    return MaterializeResult(
+        metadata={
+            "Number of records - parquet": MetadataValue.int(num_records),
+            "Number of records - raw csv": MetadataValue.int(raw_csv_length),
+            "Column info": MetadataValue.json(col_info_json),
+        },
+        check_results=[
+            AssetCheckResult(
+                check_name=check_spec.acp.name, passed=check_spec.condition(df)
+            )
+            for check_spec in checks.check_spec_list
+        ],
     )
-
-    # asset checks
-
-    for c in checks.check_specs:
-        check_name = c["check_spec"].name
-        condition_func = c["condition"]
-        yield AssetCheckResult(check_name=check_name, passed=condition_func(df))
-
-    # return
-    # )
