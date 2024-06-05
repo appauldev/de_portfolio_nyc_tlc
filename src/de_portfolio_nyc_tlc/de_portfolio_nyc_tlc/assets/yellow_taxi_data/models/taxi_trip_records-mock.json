@@ -1,0 +1,88 @@
+{
+    "table": "taxi_trip_records",
+    "mockStartIndex": 1,
+    "mockCount": 10,
+    "mockValueReference": "http://mockjs.com/examples.html#DPD",
+    "mock": {
+        "vendor_id": {
+            "type": "TINYINT",
+            "value": "@integer(0,127)"
+        },
+        "pickup_dtime": {
+            "type": "TIMESTAMP",
+            "value": "@datetime()"
+        },
+        "dropoff_dtime": {
+            "type": "TIMESTAMP",
+            "value": "@datetime()"
+        },
+        "passenger_count": {
+            "type": "TINYINT",
+            "value": "@integer(0,127)"
+        },
+        "trip_distance": {
+            "type": "DOUBLE",
+            "value": "@float(0,100,2,2)"
+        },
+        "rate_code_id": {
+            "type": "TINYINT",
+            "value": "@integer(0,127)"
+        },
+        "store_and_fwd_flag": {
+            "type": "TINYINT",
+            "value": "@integer(0,127)"
+        },
+        "pickup_lid": {
+            "type": "SMALLINT",
+            "value": "@integer(0,1024)"
+        },
+        "dropoff_lid": {
+            "type": "SMALLINT",
+            "value": "@integer(0,1024)"
+        },
+        "payment_type": {
+            "type": "TINYINT",
+            "value": "@integer(0,127)"
+        },
+        "fare_amount": {
+            "type": "DOUBLE",
+            "value": "@float(0,100,2,2)"
+        },
+        "extra": {
+            "type": "DOUBLE",
+            "value": "@float(0,100,2,2)"
+        },
+        "mta_tax": {
+            "type": "DOUBLE",
+            "value": "@float(0,100,2,2)"
+        },
+        "tip_amount": {
+            "type": "DOUBLE",
+            "value": "@float(0,100,2,2)"
+        },
+        "tolls_amount": {
+            "type": "DOUBLE",
+            "value": "@float(0,100,2,2)"
+        },
+        "improvement_surcharge": {
+            "type": "DOUBLE",
+            "value": "@float(0,100,2,2)"
+        },
+        "total_amount": {
+            "type": "DOUBLE",
+            "value": "@float(0,100,2,2)"
+        },
+        "congestion_surcharge": {
+            "type": "DOUBLE",
+            "value": "@float(0,100,2,2)"
+        },
+        "airport_fee": {
+            "type": "DOUBLE",
+            "value": "@float(0,100,2,2)"
+        },
+        "__index_level_0__": {
+            "type": "BIGINT",
+            "value": "@integer(1,1024)"
+        }
+    }
+}
