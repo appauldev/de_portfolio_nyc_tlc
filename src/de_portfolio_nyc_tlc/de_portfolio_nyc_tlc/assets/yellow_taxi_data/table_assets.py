@@ -1,11 +1,19 @@
-from dagster import MaterializeResult, MetadataValue, asset
+from dagster import AssetCheckResult, MaterializeResult, MetadataValue, asset
 import duckdb
 import pandas as pd
 import os
 
+from .checks import table_asset_checks as checks
 
-@asset(deps=["YT_monthly_parquet_2022"])
-def staging_table_YT_2022():
+
+@asset(
+    deps=["YT_monthly_parquet_2022"],
+    description="""
+        The table resulting from the combined parquet assets
+        """,
+    check_specs=[check_spec.acp for check_spec in checks.check_spec_list],
+)
+def table_YT_trip_records_2022() -> MaterializeResult:
     CURRENT_DIR = os.path.dirname(__file__)
     PARQUET_FILES = [
         entry.path
@@ -19,7 +27,7 @@ def staging_table_YT_2022():
     MAIN_DB = "taxi_trip_records.duckdb"
     MAIN_TABLE_PATH = os.path.join(CURRENT_DIR, MODELS_DIR, MAIN_DB)
 
-    tbl_name = "taxi_trip_records"
+    tbl_name = "yellow_taxi_trips"
 
     # persist the duckdb data
     conn = duckdb.connect(MAIN_TABLE_PATH)
@@ -34,7 +42,7 @@ def staging_table_YT_2022():
     CREATE OR REPLACE SEQUENCE pk_seq START 1;
 
     CREATE OR REPLACE TABLE {tbl_name} (
-        trip_id BIGINT DEFAULT NEXTVAL('pk_seq') PRIMARY KEY,
+        trip_id BIGINT DEFAULT NEXTVAL('pk_seq'),
         vendor_id TINYINT,
         pickup_dtime TIMESTAMP,
         dropoff_dtime TIMESTAMP,
@@ -101,5 +109,12 @@ def staging_table_YT_2022():
             "Count of total records": MetadataValue.text(
                 str(f"{result.at[0, "count_total_records"]:,}")
             )
-        }
+        },
+        check_results=[
+            AssetCheckResult(
+                check_name=check_spec.acp.name,
+                passed=check_spec.condition(int(result.at[0, "count_total_records"])),
+            )
+            for check_spec in checks.check_spec_list
+        ],
     )
