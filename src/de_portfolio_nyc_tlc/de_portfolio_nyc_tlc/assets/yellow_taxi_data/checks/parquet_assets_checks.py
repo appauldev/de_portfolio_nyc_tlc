@@ -22,7 +22,7 @@ check_spec_list: list[CheckSpec] = []
 
 check_spec_list.append(
     CheckSpec(
-        AssetCheckSpec(
+        AssetCheckSpec=AssetCheckSpec(
             name="dataframe_is_not_null_or_empty",
             description="Verify that the dataframe has contents",
             asset=asset,
@@ -33,7 +33,7 @@ check_spec_list.append(
 
 check_spec_list.append(
     CheckSpec(
-        AssetCheckSpec(
+        AssetCheckSpec=AssetCheckSpec(
             name="trip_distances_are_positive",
             description="Only accept taxi trip records that have recorded movement > 0 miles",
             asset=asset,
@@ -43,7 +43,7 @@ check_spec_list.append(
 )
 check_spec_list.append(
     CheckSpec(
-        AssetCheckSpec(
+        AssetCheckSpec=AssetCheckSpec(
             name="only_paid_trips",
             description="Only accept taxi trip records that are paid",
             asset=asset,

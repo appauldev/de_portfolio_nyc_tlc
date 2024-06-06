@@ -3,7 +3,7 @@ from dagster_duckdb import DuckDBResource
 import pandas as pd
 import os
 
-from .constants import TABLE_YELLOW_TAXI_TRIPS
+from .constants.table_names import TABLE_YELLOW_TAXI_TRIPS
 
 from .checks import table_asset_checks as checks
 
@@ -13,7 +13,7 @@ from .checks import table_asset_checks as checks
     description="""
         The table resulting from the combined parquet assets
         """,
-    check_specs=[check_spec.acp for check_spec in checks.check_spec_list],
+    check_specs=[check_spec.AssetCheckSpec for check_spec in checks.check_spec_list],
 )
 def table_YT_trip_records_2022(duckdb: DuckDBResource) -> MaterializeResult:
     CURRENT_DIR = os.path.dirname(__file__)
@@ -99,21 +99,20 @@ def table_YT_trip_records_2022(duckdb: DuckDBResource) -> MaterializeResult:
             f"SELECT COUNT(*) as count_total_records FROM {tbl_name}"
         ).df()
 
-        result["count_total_records"] = result["count_total_records"]
         print(f"{result}")
         print(f"{result.at[0, "count_total_records"]}")
 
-    return MaterializeResult(
-        metadata={
-            "Count of total records": MetadataValue.text(
-                str(f"{result.at[0, "count_total_records"]:,}")
-            )
-        },
-        check_results=[
-            AssetCheckResult(
-                check_name=check_spec.acp.name,
-                passed=check_spec.condition(int(result.at[0, "count_total_records"])),
-            )
-            for check_spec in checks.check_spec_list
-        ],
-    )
+        return MaterializeResult(
+            metadata={
+                "Count of total records": MetadataValue.text(
+                    str(f"{result.at[0, "count_total_records"]:,}")
+                )
+            },
+            check_results=[
+                AssetCheckResult(
+                    check_name=check_spec.AssetCheckSpec.name,
+                    passed=check_spec.condition(conn),
+                )
+                for check_spec in checks.check_spec_list
+            ],
+        )

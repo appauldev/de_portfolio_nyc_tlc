@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable
 
@@ -6,6 +7,6 @@ from pandas import DataFrame
 
 
 @dataclass
-class CheckSpec:
-    acp: AssetCheckSpec
+class CheckSpec(ABC):
+    AssetCheckSpec: AssetCheckSpec
     condition: Callable[[any], bool]

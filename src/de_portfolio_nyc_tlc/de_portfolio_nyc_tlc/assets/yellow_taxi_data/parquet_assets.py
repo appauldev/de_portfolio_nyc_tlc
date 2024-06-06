@@ -26,7 +26,7 @@ import os
     * Dropping records with with invalid trip distance, i.e., `trip_distance > 0`, are retained
     """,
     dagster_type={},
-    check_specs=[check_spec.acp for check_spec in checks.check_spec_list],
+    check_specs=[check_spec.AssetCheckSpec for check_spec in checks.check_spec_list],
 )
 def YT_monthly_parquet_2022(
     context: AssetExecutionContext,
@@ -158,7 +158,8 @@ def YT_monthly_parquet_2022(
         },
         check_results=[
             AssetCheckResult(
-                check_name=check_spec.acp.name, passed=check_spec.condition(df)
+                check_name=check_spec.AssetCheckSpec.name,
+                passed=check_spec.condition(df),
             )
             for check_spec in checks.check_spec_list
         ],

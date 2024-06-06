@@ -2,7 +2,7 @@ from dagster import MaterializeResult, asset
 from dagster_duckdb import DuckDBResource
 
 from .table_assets import table_YT_trip_records_2022
-from .constants import TABLE_YELLOW_TAXI_TRIPS
+from .constants import table_names
 
 
 @asset(
@@ -14,15 +14,53 @@ from .constants import TABLE_YELLOW_TAXI_TRIPS
 def dim_trip_datetime(duckdb: DuckDBResource) -> MaterializeResult:
 
     with duckdb.get_connection() as conn:
-        tbl_name = TABLE_YELLOW_TAXI_TRIPS
-        query = """
-        SELECT
+        main_tbl = table_names.TABLE_YELLOW_TAXI_TRIPS
+        dim_trip_datetime = table_names.DIM_TRIP_DATETIME
+        query_create_dim_table = f"""
+        CREATE OR REPLACE SEQUENCE dim_trip_datetime_seq START 1;
+        
+        CREATE OR REPLACE TABLE {dim_trip_datetime} (
+            datetime_key BIGINT DEFAULT NEXTVAL('dim_trip_datetime_seq'),
+            pickup_dtime TIMESTAMP,
+            pickup_date DATE,
+            pickup_hour TINYINT,
+            pickup_dow TINYINT,
+            dropoff_dtime TIMESTAMP,
+            dropoff_date DATE,
+            dropoff_hour TINYINT,
+            dropoff_dow TINYINT
+        );
+
+        INSERT INTO {dim_trip_datetime} (
             pickup_dtime,
-            dropoff_dtime
-        FROM {tbl_name}""".format(
-            tbl_name=tbl_name
+            pickup_date,
+            pickup_hour,
+            pickup_dow,
+            dropoff_dtime,
+            dropoff_date,
+            dropoff_hour,
+            dropoff_dow
         )
-        conn.sql(query).show()
+            SELECT DISTINCT
+                pickup_dtime,
+                pickup_dtime::DATE,
+                DATEPART('hour', pickup_dtime),
+                DATEPART('dow', pickup_dtime),
+                dropoff_dtime,
+                dropoff_dtime::DATE,
+                DATEPART('hour', dropoff_dtime),
+                DATEPART('dow', dropoff_dtime)
+            FROM {main_tbl};
+       """
+
+        conn.sql(query_create_dim_table)
+        conn.sql(f"SELECT * FROM {dim_trip_datetime} LIMIT 10").show()
+        result = conn.sql(f"SELECT * FROM {dim_trip_datetime} LIMIT 10").to_df()
+        print(result.dtypes)
+        count = conn.sql(
+            f"SELECT COUNT(*) AS total_count FROM {dim_trip_datetime}"
+        ).to_df()
+        print(f"{count.at[0, "total_count"]}")
 
     return MaterializeResult(metadata={})
 
@@ -36,7 +74,7 @@ def dim_trip_datetime(duckdb: DuckDBResource) -> MaterializeResult:
 def dim_trip_location(duckdb: DuckDBResource) -> MaterializeResult:
 
     with duckdb.get_connection() as conn:
-        tbl_name = TABLE_YELLOW_TAXI_TRIPS
+        tbl_name = table_names.TABLE_YELLOW_TAXI_TRIPS
         query = """
         SELECT
             pickup_lid,
@@ -58,7 +96,7 @@ def dim_trip_location(duckdb: DuckDBResource) -> MaterializeResult:
 def dim_transaction_fees(duckdb: DuckDBResource) -> MaterializeResult:
 
     with duckdb.get_connection() as conn:
-        tbl_name = TABLE_YELLOW_TAXI_TRIPS
+        tbl_name = table_names.TABLE_YELLOW_TAXI_TRIPS
         query = """
         SELECT
             rate_code_id,
@@ -89,7 +127,7 @@ def dim_transaction_fees(duckdb: DuckDBResource) -> MaterializeResult:
 def dim_taxi_misc_details(duckdb: DuckDBResource) -> MaterializeResult:
 
     with duckdb.get_connection() as conn:
-        tbl_name = TABLE_YELLOW_TAXI_TRIPS
+        tbl_name = table_names.TABLE_YELLOW_TAXI_TRIPS
         query = """
         SELECT
             vendor_id,
