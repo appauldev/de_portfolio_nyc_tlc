@@ -12,6 +12,8 @@ from .parquet_assets import YT_monthly_parquet_2022
 
 from .csv_assets import taxi_zone_lookup_csv
 
+from .helpers import table_helpers as helper
+
 
 @asset(
     deps=[YT_monthly_parquet_2022],
@@ -30,8 +32,6 @@ def table_YT_trip_records_2022(duckdb: DuckDBResource) -> MaterializeResult:
     # sort files from JAN-DEC
     PARQUET_FILES = sorted(PARQUET_FILES)
 
-    main_table = table_names.TABLE_YELLOW_TAXI_TRIPS
-
     # persist the duckdb data
     with duckdb.get_connection() as conn:
         # query to create the main table
@@ -43,7 +43,7 @@ def table_YT_trip_records_2022(duckdb: DuckDBResource) -> MaterializeResult:
         query_create_table = f"""--sql
         CREATE OR REPLACE SEQUENCE pk_seq START 1;
 
-        CREATE OR REPLACE TABLE {main_table} (
+        CREATE OR REPLACE TABLE {table_names.YELLOW_TAXI_TRIPS} (
             trip_id BIGINT DEFAULT NEXTVAL('pk_seq'),
             vendor_id TINYINT,
             pickup_dtime TIMESTAMP,
@@ -67,7 +67,7 @@ def table_YT_trip_records_2022(duckdb: DuckDBResource) -> MaterializeResult:
             __index_level_0__ BIGINT
         );
 
-        INSERT INTO {main_table} (
+        INSERT INTO {table_names.YELLOW_TAXI_TRIPS} (
             vendor_id,
             pickup_dtime,
             dropoff_dtime,
@@ -95,22 +95,15 @@ def table_YT_trip_records_2022(duckdb: DuckDBResource) -> MaterializeResult:
         # execute
         conn.sql(query_create_table)
         # verify
-        conn.sql(f"SELECT * FROM {main_table} LIMIT 10;").show()
+        conn.sql(f"SELECT * FROM {table_names.YELLOW_TAXI_TRIPS} LIMIT 10;").show()
 
         # metadata
-        result = conn.sql(
-            f"SELECT COUNT(*) as count_total_records FROM {main_table}"
-        ).df()
-
-        print(f"{result}")
-        print(f"{result.at[0, "count_total_records"]}")
+        metadata = helper.get_table_metadata(
+            conn=conn, table_name=table_names.YELLOW_TAXI_TRIPS
+        )
 
         return MaterializeResult(
-            metadata={
-                "Count of total records": MetadataValue.text(
-                    f"{result.at[0, "count_total_records"]:,}"
-                )
-            },
+            metadata=metadata,
             check_results=[
                 AssetCheckResult(
                     check_name=check_spec.AssetCheckSpec.name,
@@ -132,25 +125,25 @@ def taxi_zone_lookup_table(duckdb: DuckDBResource) -> MaterializeResult:
     taxi_zone_file_path = os.path.join(
         os.path.dirname(__file__), "data/csv", "taxi_zone_lookup.csv"
     )
-    taxi_zone_lookup = table_names.TABLE_TAXI_ZONE_LOOKUP
     with duckdb.get_connection() as conn:
 
         query_create_taxi_zone_lookup_table = f"""--sql
-            CREATE OR REPLACE TABLE {taxi_zone_lookup} (
+            CREATE OR REPLACE TABLE {table_names.TAXI_ZONE_LOOKUP} (
                 location_id SMALLINT PRIMARY KEY,
                 borough TEXT,
                 zone TEXT,
                 service_zone TEXT
             );
 
-            INSERT INTO {taxi_zone_lookup}
+            INSERT INTO {table_names.TAXI_ZONE_LOOKUP}
                 SELECT * FROM read_csv('{taxi_zone_file_path}');
         """
+        # execute
         conn.sql(query_create_taxi_zone_lookup_table)
-        conn.sql(
-            f"""--sql
-                SELECT * FROM {taxi_zone_lookup};
-            """
-        ).show()
 
-        return MaterializeResult(metadata={})
+        # metadata
+        metadata = helper.get_table_metadata(
+            conn=conn, table_name=table_names.TAXI_ZONE_LOOKUP
+        )
+
+        return MaterializeResult(metadata=metadata)

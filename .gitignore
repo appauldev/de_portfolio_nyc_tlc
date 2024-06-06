@@ -166,6 +166,7 @@ pythonenv*/
 
 # DuckDB
 *.duckdb
+*.wal
 
 # PyRight config
 pyrightconfig*

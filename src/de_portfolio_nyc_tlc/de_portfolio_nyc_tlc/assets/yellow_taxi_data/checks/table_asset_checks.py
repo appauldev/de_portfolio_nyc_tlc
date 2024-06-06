@@ -4,15 +4,14 @@ from . import AssetCheckSpec, CheckSpec
 from ..constants import table_names
 
 asset = "table_YT_trip_records_2022"
-tbl_name = table_names.TABLE_YELLOW_TAXI_TRIPS
 
 
 # asset check conditions
 def table_is_not_empty(conn: DuckDBPyConnection):
     result = conn.sql(
-        f"""
+        f"""--sql
         SELECT COUNT(*) as count_total_records
-        FROM {tbl_name}
+        FROM {table_names.YELLOW_TAXI_TRIPS}
         """
     ).df()
 
