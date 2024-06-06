@@ -1,15 +1,20 @@
 from dagster import AssetCheckResult, MaterializeResult, MetadataValue, asset
 from dagster_duckdb import DuckDBResource
-import pandas as pd
 import os
+
 
 from .constants import table_names
 
 from .checks import table_asset_checks as checks
 
 
+from .parquet_assets import YT_monthly_parquet_2022
+
+from .csv_assets import taxi_zone_lookup_csv
+
+
 @asset(
-    deps=["YT_monthly_parquet_2022"],
+    deps=[YT_monthly_parquet_2022],
     description="""
         The table resulting from the combined parquet assets
         """,
@@ -114,3 +119,38 @@ def table_YT_trip_records_2022(duckdb: DuckDBResource) -> MaterializeResult:
                 for check_spec in checks.check_spec_list
             ],
         )
+
+
+@asset(
+    deps=[taxi_zone_lookup_csv],
+    description="""
+        The lookup table for the pickup and dropoff zones of the taxi trips
+        """,
+)
+def taxi_zone_lookup_table(duckdb: DuckDBResource) -> MaterializeResult:
+
+    taxi_zone_file_path = os.path.join(
+        os.path.dirname(__file__), "data/csv", "taxi_zone_lookup.csv"
+    )
+    taxi_zone_lookup = table_names.TABLE_TAXI_ZONE_LOOKUP
+    with duckdb.get_connection() as conn:
+
+        query_create_taxi_zone_lookup_table = f"""--sql
+            CREATE OR REPLACE TABLE {taxi_zone_lookup} (
+                location_id SMALLINT PRIMARY KEY,
+                borough TEXT,
+                zone TEXT,
+                service_zone TEXT
+            );
+
+            INSERT INTO {taxi_zone_lookup}
+                SELECT * FROM read_csv('{taxi_zone_file_path}');
+        """
+        conn.sql(query_create_taxi_zone_lookup_table)
+        conn.sql(
+            f"""--sql
+                SELECT * FROM {taxi_zone_lookup};
+            """
+        ).show()
+
+        return MaterializeResult(metadata={})

@@ -108,3 +108,20 @@ async def YT_monthly_csv_2022(
             "Number of fetched records": MetadataValue.int(total_records_saved),
         }
     )
+
+
+@asset
+async def taxi_zone_lookup_csv():
+    url = "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
+    file_save_path = os.path.join(
+        os.path.dirname(__file__), "data/csv", "taxi_zone_lookup.csv"
+    )
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(url)
+
+            with open(file_save_path, "wb") as f:
+                f.write(response.content)
+        except Exception as e:
+            print(e)
