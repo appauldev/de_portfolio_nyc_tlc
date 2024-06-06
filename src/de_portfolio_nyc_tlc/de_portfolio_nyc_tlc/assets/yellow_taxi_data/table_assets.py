@@ -36,6 +36,7 @@ def table_YT_trip_records_2022(duckdb: DuckDBResource) -> MaterializeResult:
         # Convenient dtype such as auto-incrementing serial values is not yet supported, but we can
         #   use the CREATE SEQUENCE seq statement to have similar results
         query_create_table = """
+        --sql
         CREATE OR REPLACE SEQUENCE pk_seq START 1;
 
         CREATE OR REPLACE TABLE {tbl_name} (

@@ -15,7 +15,7 @@ def dim_trip_datetime(duckdb: DuckDBResource) -> MaterializeResult:
 
     with duckdb.get_connection() as conn:
         main_tbl = table_names.TABLE_YELLOW_TAXI_TRIPS
-        dim_trip_datetime = table_names.DIM_TRIP_DATETIME
+        dim_trip_datetime = table_names.TABLE_DIM_TRIP_DATETIME
         query_create_dim_table = f"""
         CREATE OR REPLACE SEQUENCE dim_trip_datetime_seq START 1;
         
@@ -96,24 +96,63 @@ def dim_trip_location(duckdb: DuckDBResource) -> MaterializeResult:
 def dim_transaction_fees(duckdb: DuckDBResource) -> MaterializeResult:
 
     with duckdb.get_connection() as conn:
-        tbl_name = table_names.TABLE_YELLOW_TAXI_TRIPS
-        query = """
-        SELECT
-            rate_code_id,
+        main_table = table_names.TABLE_YELLOW_TAXI_TRIPS
+        dim_transaction_fees = table_names.TABLE_DIM_TRANSACTION_FEES
+
+        query_create_dim_table = f"""
+        CREATE OR REPLACE SEQUENCE dim_transaction_fees_seq START 1;
+
+        CREATE OR REPLACE TABLE {dim_transaction_fees} (
+            transaction_key BIGINT DEFAULT NEXTVAL('dim_transaction_fees_seq'),
+            total_amount DOUBLE,
+            payment_type TINYINT,
+            rate_code_id TINYINT,
+            fare_amount DOUBLE,
+            mta_tax DOUBLE,
+            tip_amount DOUBLE,
+            tolls_amount DOUBLE,
+            improvement_surcharge DOUBLE,
+            congestion_surcharge DOUBLE,
+            extra DOUBLE,
+            airport_fee DOUBLE
+        );
+
+        INSERT INTO {dim_transaction_fees} (
+            total_amount,
             payment_type,
+            rate_code_id,
             fare_amount,
-            extra,
             mta_tax,
             tip_amount,
             tolls_amount,
             improvement_surcharge,
-            total_amount,
             congestion_surcharge,
+            extra,
             airport_fee
-        FROM {tbl_name}""".format(
-            tbl_name=tbl_name
         )
-        conn.sql(query).show()
+            SELECT DISTINCT
+                total_amount,
+                payment_type,
+                rate_code_id,
+                fare_amount,
+                mta_tax,
+                tip_amount,
+                tolls_amount,
+                improvement_surcharge,
+                congestion_surcharge,
+                extra,
+                airport_fee
+            FROM {main_table}
+        """
+
+        conn.sql(query_create_dim_table)
+        conn.sql(f"SELECT * FROM {dim_transaction_fees} LIMIT 10").show()
+        result = conn.sql(f"SELECT * FROM {dim_transaction_fees} LIMIT 10").to_df()
+        print(result.dtypes)
+        count = conn.sql(
+            f"SELECT COUNT(*) AS total_count FROM {dim_transaction_fees}"
+        ).to_df()
+        print(f"{count.at[0, "total_count"]}")
 
     return MaterializeResult(metadata={})
 
