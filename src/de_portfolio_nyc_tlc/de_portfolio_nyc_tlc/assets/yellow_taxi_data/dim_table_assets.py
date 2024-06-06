@@ -1,4 +1,4 @@
-from dagster import MaterializeResult, asset
+from dagster import MaterializeResult, MetadataValue, asset
 from dagster_duckdb import DuckDBResource
 
 from .table_assets import table_YT_trip_records_2022
@@ -12,13 +12,13 @@ from .constants import table_names
     """,
 )
 def dim_trip_datetime(duckdb: DuckDBResource) -> MaterializeResult:
-
     with duckdb.get_connection() as conn:
-        main_tbl = table_names.TABLE_YELLOW_TAXI_TRIPS
+        main_table = table_names.TABLE_YELLOW_TAXI_TRIPS
         dim_trip_datetime = table_names.TABLE_DIM_TRIP_DATETIME
-        query_create_dim_table = f"""
+
+        query_create_dim_table = f"""--sql
         CREATE OR REPLACE SEQUENCE dim_trip_datetime_seq START 1;
-        
+
         CREATE OR REPLACE TABLE {dim_trip_datetime} (
             datetime_key BIGINT DEFAULT NEXTVAL('dim_trip_datetime_seq'),
             pickup_dtime TIMESTAMP,
@@ -50,19 +50,32 @@ def dim_trip_datetime(duckdb: DuckDBResource) -> MaterializeResult:
                 dropoff_dtime::DATE,
                 DATEPART('hour', dropoff_dtime),
                 DATEPART('dow', dropoff_dtime)
-            FROM {main_tbl};
+            FROM {main_table};
        """
 
         conn.sql(query_create_dim_table)
-        conn.sql(f"SELECT * FROM {dim_trip_datetime} LIMIT 10").show()
+        conn.sql(
+            f"""--sql
+                 SELECT * FROM {dim_trip_datetime} LIMIT 10
+            """
+        ).show()
         result = conn.sql(f"SELECT * FROM {dim_trip_datetime} LIMIT 10").to_df()
         print(result.dtypes)
+        # metadata
         count = conn.sql(
-            f"SELECT COUNT(*) AS total_count FROM {dim_trip_datetime}"
+            f"""--sql
+                SELECT COUNT(*) AS total_count FROM {dim_trip_datetime}
+            """
         ).to_df()
         print(f"{count.at[0, "total_count"]}")
 
-    return MaterializeResult(metadata={})
+    return MaterializeResult(
+        metadata={
+            "Total count of records": MetadataValue.text(
+                f"{count.at[0, "total_count"]:,}"
+            )
+        }
+    )
 
 
 @asset(
@@ -99,7 +112,7 @@ def dim_transaction_fees(duckdb: DuckDBResource) -> MaterializeResult:
         main_table = table_names.TABLE_YELLOW_TAXI_TRIPS
         dim_transaction_fees = table_names.TABLE_DIM_TRANSACTION_FEES
 
-        query_create_dim_table = f"""
+        query_create_dim_table = f"""--sql
         CREATE OR REPLACE SEQUENCE dim_transaction_fees_seq START 1;
 
         CREATE OR REPLACE TABLE {dim_transaction_fees} (
@@ -146,15 +159,28 @@ def dim_transaction_fees(duckdb: DuckDBResource) -> MaterializeResult:
         """
 
         conn.sql(query_create_dim_table)
-        conn.sql(f"SELECT * FROM {dim_transaction_fees} LIMIT 10").show()
+        conn.sql(
+            f"""--sql
+                 SELECT * FROM {dim_transaction_fees} LIMIT 10
+            """
+        ).show()
         result = conn.sql(f"SELECT * FROM {dim_transaction_fees} LIMIT 10").to_df()
         print(result.dtypes)
+        # Metadata
         count = conn.sql(
-            f"SELECT COUNT(*) AS total_count FROM {dim_transaction_fees}"
+            f"""--sql
+            SELECT COUNT(*) AS total_count FROM {dim_transaction_fees}
+            """
         ).to_df()
         print(f"{count.at[0, "total_count"]}")
 
-    return MaterializeResult(metadata={})
+    return MaterializeResult(
+        metadata={
+            "Count of total records": MetadataValue.text(
+                f"{count.at[0, "total_count"]:,}"
+            )
+        }
+    )
 
 
 @asset(

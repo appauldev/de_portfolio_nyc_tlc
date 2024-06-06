@@ -3,7 +3,7 @@ from dagster_duckdb import DuckDBResource
 import pandas as pd
 import os
 
-from .constants.table_names import TABLE_YELLOW_TAXI_TRIPS
+from .constants import table_names
 
 from .checks import table_asset_checks as checks
 
@@ -25,7 +25,7 @@ def table_YT_trip_records_2022(duckdb: DuckDBResource) -> MaterializeResult:
     # sort files from JAN-DEC
     PARQUET_FILES = sorted(PARQUET_FILES)
 
-    tbl_name = TABLE_YELLOW_TAXI_TRIPS
+    main_table = table_names.TABLE_YELLOW_TAXI_TRIPS
 
     # persist the duckdb data
     with duckdb.get_connection() as conn:
@@ -35,11 +35,10 @@ def table_YT_trip_records_2022(duckdb: DuckDBResource) -> MaterializeResult:
         #   However, duckdb is yet to support ADD/DROP CONSTRAINT statement: https://duckdb.org/docs/sql/statements/alter_table#add--drop-constraint
         # Convenient dtype such as auto-incrementing serial values is not yet supported, but we can
         #   use the CREATE SEQUENCE seq statement to have similar results
-        query_create_table = """
-        --sql
+        query_create_table = f"""--sql
         CREATE OR REPLACE SEQUENCE pk_seq START 1;
 
-        CREATE OR REPLACE TABLE {tbl_name} (
+        CREATE OR REPLACE TABLE {main_table} (
             trip_id BIGINT DEFAULT NEXTVAL('pk_seq'),
             vendor_id TINYINT,
             pickup_dtime TIMESTAMP,
@@ -63,7 +62,7 @@ def table_YT_trip_records_2022(duckdb: DuckDBResource) -> MaterializeResult:
             __index_level_0__ BIGINT
         );
 
-        INSERT INTO {tbl_name} (
+        INSERT INTO {main_table} (
             vendor_id,
             pickup_dtime,
             dropoff_dtime,
@@ -86,18 +85,16 @@ def table_YT_trip_records_2022(duckdb: DuckDBResource) -> MaterializeResult:
             __index_level_0__
         )
             SELECT * FROM read_parquet({PARQUET_FILES});
-        """.format(
-            PARQUET_FILES=PARQUET_FILES, tbl_name=tbl_name
-        )
+        """
 
         # execute
         conn.sql(query_create_table)
         # verify
-        conn.sql(f"SELECT * FROM {tbl_name} LIMIT 10;").show()
+        conn.sql(f"SELECT * FROM {main_table} LIMIT 10;").show()
 
         # metadata
         result = conn.sql(
-            f"SELECT COUNT(*) as count_total_records FROM {tbl_name}"
+            f"SELECT COUNT(*) as count_total_records FROM {main_table}"
         ).df()
 
         print(f"{result}")
@@ -106,7 +103,7 @@ def table_YT_trip_records_2022(duckdb: DuckDBResource) -> MaterializeResult:
         return MaterializeResult(
             metadata={
                 "Count of total records": MetadataValue.text(
-                    str(f"{result.at[0, "count_total_records"]:,}")
+                    f"{result.at[0, "count_total_records"]:,}"
                 )
             },
             check_results=[
